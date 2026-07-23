@@ -1,0 +1,104 @@
+name: manual release artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        type: string
+        description: 'Tag/version for the GitHub Release (for example: v1.2.3)'
+        required: true
+      release_name:
+        type: string
+        description: Optional release title (defaults to "Release <tag>")
+        required: false
+      prerelease:
+        type: boolean
+        description: Mark this GitHub Release as a prerelease
+        required: true
+        default: false
+      dry_run:
+        type: boolean
+        description: Run build and pack only, skip release creation/upload
+        required: true
+        default: true
+      target_ref:
+        type: string
+        description: Optional branch, tag, or commit to release from (defaults to trigger ref)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-artifact:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_REF: ""
+      RELEASE_NAME: ""
+      PACK_FILE: ""
+    permissions:
+      contents: write
+    steps:
+      - name: Determine target ref
+        run: |
+          if [ -n "${{ inputs.target_ref }}" ]; then
+            echo "TARGET_REF=${{ inputs.target_ref }}" >> "$GITHUB_ENV"
+          else
+            echo "TARGET_REF=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_REF }}
+          token: ${{ github.token }}
+
+      - uses: actions/setup-node@v7
+        with:
+          cache: npm
+          node-version-file: .nvmrc
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Create package tarball
+        run: |
+          npm pack --json > npm-pack.json
+          PACK_FILE="$(jq -r '.[0].filename' npm-pack.json)"
+          if [ -z "$PACK_FILE" ] || [ "$PACK_FILE" = "null" ] || [ ! -f "$PACK_FILE" ]; then
+            echo "Failed to locate generated .tgz artifact"
+            exit 1
+          fi
+          echo "PACK_FILE=$PACK_FILE" >> "$GITHUB_ENV"
+
+      - name: Set release metadata defaults
+        run: |
+          if [ -n "${{ inputs.release_name }}" ]; then
+            echo "RELEASE_NAME=${{ inputs.release_name }}" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_NAME=Release ${{ inputs.version_tag }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Ensure release tag does not already exist
+        if: ${{ github.event.inputs.dry_run == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ inputs.version_tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release with tag '${{ inputs.version_tag }}' already exists"
+            exit 1
+          fi
+
+      - name: Create GitHub Release and upload .tgz
+        if: ${{ github.event.inputs.dry_run == 'false' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ github.token }}
+          tag_name: ${{ inputs.version_tag }}
+          target_commitish: ${{ env.TARGET_REF }}
+          name: ${{ env.RELEASE_NAME }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: ${{ env.PACK_FILE }}
