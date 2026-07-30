@@ -34,6 +34,10 @@ import { join } from 'path';
 import { readFileSync } from 'fs';
 
 describe('options', () => {
+  afterEach(() => {
+    clearActiveDistributedTraceCarrier();
+  });
+
   it('normalize', async () => {
     const cliArgs: CliArgs = {
       params: {
@@ -79,6 +83,66 @@ describe('options', () => {
         },
       },
       screenshots: 'on',
+    });
+  });
+
+  it('normalizes otel from config and cli args', async () => {
+    const config = join(__dirname, 'fixtures', 'otel.config.ts');
+    expect(await normalizeOptions({ config })).toMatchObject({
+      reporter: 'json',
+      otel: true,
+    });
+
+    expect(await normalizeOptions({ config, otel: false })).toMatchObject({
+      otel: false,
+    });
+
+    expect(await normalizeOptions({ otel: true })).toMatchObject({
+      reporter: 'json',
+      otel: true,
+    });
+
+    expect(
+      await normalizeOptions({
+        otel: true,
+        reporter: 'junit',
+      })
+    ).toMatchObject({
+      reporter: 'junit',
+      otel: true,
+    });
+
+    expect(
+      await normalizeOptions({
+        otel: true,
+        distributedTracing: true,
+        distributedTracingOrigins: ['example.com'],
+      })
+    ).toMatchObject({
+      otel: true,
+      distributedTracing: true,
+      distributedTracingOrigins: ['example.com'],
+    });
+
+    expect(
+      await normalizeOptions({
+        distributedTracing: true,
+        distributedTracingOrigins: ['example.com'],
+      })
+    ).toMatchObject({
+      otel: false,
+      distributedTracing: false,
+    });
+
+    expect(
+      await normalizeOptions({
+        otel: true,
+        distributedTracing: true,
+      })
+    ).toMatchObject({
+      otel: true,
+      distributedTracing: false,
+      distributedTracingOrigins: [],
     });
   });
 
@@ -243,6 +307,70 @@ describe('options', () => {
       });
 
       expect(result).toEqual(opts);
+    });
+  });
+
+  describe('distributed tracing helpers', () => {
+    it('matches exact and wildcard host patterns', () => {
+      expect(
+        isTracingAllowedForUrl('https://api.example.com/path', [
+          '*.example.com',
+        ])
+      ).toBe(true);
+      expect(
+        isTracingAllowedForUrl('https://example.com/path', ['example.com'])
+      ).toBe(true);
+      expect(
+        isTracingAllowedForUrl('https://elastic.co/path', ['example.com'])
+      ).toBe(false);
+      expect(
+        isTracingAllowedForUrl('data:text/plain,hello', ['example.com'])
+      ).toBe(false);
+    });
+
+    it('injects trace headers only when traceparent is absent', () => {
+      setActiveDistributedTraceCarrier({
+        traceId: '70f5f7e91d4f6f04636f27e72f33818d',
+        spanId: '58dfc2a7bc56cd91',
+        traceFlags: TraceFlags.SAMPLED,
+      });
+
+      const headers: Record<string, string> = {
+        accept: 'application/json',
+      };
+
+      expect(tryInjectDistributedTracingHeaders(headers)).toBe(true);
+      expect(headers['traceparent']).toBe(
+        '00-70f5f7e91d4f6f04636f27e72f33818d-58dfc2a7bc56cd91-01'
+      );
+
+      const existing = {
+        traceparent: '00-11111111111111111111111111111111-2222222222222222-01',
+      };
+      expect(tryInjectDistributedTracingHeaders(existing)).toBe(false);
+      expect(existing.traceparent).toBe(
+        '00-11111111111111111111111111111111-2222222222222222-01'
+      );
+    });
+
+    it('parses valid traceparent and rejects malformed values', () => {
+      expect(
+        parseTraceparent(
+          '00-70f5f7e91d4f6f04636f27e72f33818d-58dfc2a7bc56cd91-01'
+        )
+      ).toMatchObject({
+        traceId: '70f5f7e91d4f6f04636f27e72f33818d',
+        spanId: '58dfc2a7bc56cd91',
+        traceFlags: TraceFlags.SAMPLED,
+        isRemote: true,
+      });
+
+      expect(parseTraceparent('not-a-traceparent')).toBeUndefined();
+      expect(
+        parseTraceparent(
+          'ff-70f5f7e91d4f6f04636f27e72f33818d-58dfc2a7bc56cd91-01'
+        )
+      ).toBeUndefined();
     });
   });
 });

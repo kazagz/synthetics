@@ -34,6 +34,10 @@ import { PluginManager } from '../plugins';
 import { log } from './logger';
 import { getSpkiFingerprints } from './certs';
 import {
+  isTracingAllowedForUrl,
+  tryInjectDistributedTracingHeaders,
+} from './distributed-tracing';
+import {
   APIDriver,
   Driver,
   NetworkConditions,
@@ -115,6 +119,7 @@ export class Gatherer {
       ...playwrightOptions,
       userAgent: await Gatherer.getUserAgent(playwrightOptions?.userAgent),
     });
+    await Gatherer.setupDistributedTracing(context, options);
     // Set timeouts for actions and navigations
     context.setDefaultTimeout(
       playwrightOptions?.actionTimeout ?? DEFAULT_TIMEOUT
@@ -140,6 +145,36 @@ export class Gatherer {
       client,
       request,
     } as T extends 'api' ? APIDriver : Driver;
+  }
+
+  private static async setupDistributedTracing(
+    context: BrowserContext,
+    options: RunOptions
+  ) {
+    if (!options.distributedTracing) {
+      return;
+    }
+
+    const allowedOrigins = options.distributedTracingOrigins || [];
+    if (allowedOrigins.length === 0) {
+      return;
+    }
+
+    await context.route('**/*', (route, request) => {
+      if (!isTracingAllowedForUrl(request.url(), allowedOrigins)) {
+        return route.continue();
+      }
+
+      const headers = {
+        ...request.headers(),
+      };
+      const injected = tryInjectDistributedTracingHeaders(headers);
+      if (!injected) {
+        return route.continue();
+      }
+
+      return route.continue({ headers });
+    });
   }
 
   static async getUserAgent(userAgent?: string) {
