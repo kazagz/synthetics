@@ -243,9 +243,6 @@ type BaseArgs = {
   proxy?: ProxySettings;
   namespace?: MonitorConfig['namespace'];
   maintenanceWindows?: MonitorConfig['maintenanceWindows'];
-  otel?: boolean;
-  distributedTracing?: boolean;
-  distributedTracingOrigins?: Array<string>;
 };
 
 export type CliArgs = BaseArgs & {

@@ -58,9 +58,11 @@ jobs:
           cache: npm
           node-version-file: .nvmrc
 
-      - run: npm ci
-
-      - run: npm run build
+      - name: Set version and build
+        run: |
+          npm version "${{ inputs.version_tag }}" --no-git-tag-version
+          npm ci
+          npm run build
 
       - name: Create package tarball
         run: |

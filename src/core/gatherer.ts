@@ -38,6 +38,10 @@ import {
   tryInjectDistributedTracingHeaders,
 } from './distributed-tracing';
 import {
+  isDistributedTracingEnabled,
+  getDistributedTracingOrigins,
+} from './otel';
+import {
   APIDriver,
   Driver,
   NetworkConditions,
@@ -119,7 +123,7 @@ export class Gatherer {
       ...playwrightOptions,
       userAgent: await Gatherer.getUserAgent(playwrightOptions?.userAgent),
     });
-    await Gatherer.setupDistributedTracing(context, options);
+    await Gatherer.setupDistributedTracing(context);
     // Set timeouts for actions and navigations
     context.setDefaultTimeout(
       playwrightOptions?.actionTimeout ?? DEFAULT_TIMEOUT
@@ -147,15 +151,12 @@ export class Gatherer {
     } as T extends 'api' ? APIDriver : Driver;
   }
 
-  private static async setupDistributedTracing(
-    context: BrowserContext,
-    options: RunOptions
-  ) {
-    if (!options.distributedTracing) {
+  private static async setupDistributedTracing(context: BrowserContext) {
+    if (!isDistributedTracingEnabled()) {
       return;
     }
 
-    const allowedOrigins = options.distributedTracingOrigins || [];
+    const allowedOrigins = getDistributedTracingOrigins();
     if (allowedOrigins.length === 0) {
       return;
     }

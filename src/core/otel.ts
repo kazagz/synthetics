@@ -55,7 +55,7 @@ export type OTelRuntime = {
   provider: NodeTracerProvider;
 };
 
-function parseBoolean(value: string | undefined): boolean | undefined {
+export function parseBoolean(value: string | undefined): boolean | undefined {
   if (value == null) {
     return undefined;
   }
@@ -66,6 +66,31 @@ function parseBoolean(value: string | undefined): boolean | undefined {
   if (normalized === 'false') {
     return false;
   }
+}
+
+/**
+ * Synthetics-specific enable/config surface, driven entirely by env vars
+ * since CLI flags/config file are not reachable in the target environment.
+ */
+export function isOtelEnabled(): boolean {
+  return parseBoolean(process.env['SYNTHETICS_OTEL']) ?? false;
+}
+
+export function isDistributedTracingEnabled(): boolean {
+  return (
+    parseBoolean(process.env['SYNTHETICS_OTEL_DISTRIBUTED_TRACING']) ?? false
+  );
+}
+
+export function getDistributedTracingOrigins(): Array<string> {
+  const raw = process.env['SYNTHETICS_OTEL_DISTRIBUTED_TRACING_ORIGINS'];
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
 }
 
 function isConsoleExporter(): boolean {

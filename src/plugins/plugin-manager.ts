@@ -34,6 +34,7 @@ import {
 import { Step, Journey } from '../dsl';
 import { APINetworkManager } from './api-network';
 import { OTelPlugin, SyntheticPlugin } from './otel';
+import { isOtelEnabled, isDistributedTracingEnabled } from '../core/otel';
 
 type PluginType =
   | 'network'
@@ -58,10 +59,7 @@ type Plugin =
   | BrowserConsole
   | APINetworkManager
   | OTelPlugin;
-type PluginOptions = TraceOptions & {
-  otel?: boolean;
-  distributedTracing?: boolean;
-};
+type PluginOptions = TraceOptions;
 
 function isBrowserDriver(driver: Driver | APIDriver): driver is Driver {
   return 'context' in driver;
@@ -90,10 +88,7 @@ export class PluginManager {
     let instance: Plugin;
 
     if (type === 'otel') {
-      instance = new OTelPlugin(
-        options.otel ?? false,
-        options.distributedTracing ?? false
-      );
+      instance = new OTelPlugin(isOtelEnabled(), isDistributedTracingEnabled());
     } else if (isBrowserDriver(this.driver)) {
       switch (type) {
         case 'network':
