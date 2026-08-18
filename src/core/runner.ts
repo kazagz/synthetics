@@ -181,7 +181,7 @@ export default class Runner implements RunnerInfo {
      * Set up the corresponding reporter and fallback
      * to default reporter if not provided
      */
-    const { reporter, outfd, dryRun, otel, distributedTracing } = options;
+    const { reporter, outfd, dryRun } = options;
     const Reporter =
       typeof reporter === 'function'
         ? reporter
@@ -189,8 +189,6 @@ export default class Runner implements RunnerInfo {
     this.#reporter = new Reporter({
       fd: outfd,
       dryRun,
-      otel,
-      distributedTracing,
     });
   }
 

@@ -186,7 +186,7 @@ describe('json reporter', () => {
 
   it('supports otel option without breaking json output', async () => {
     process.env['OTEL_SDK_DISABLED'] = 'true';
-    reporter = new JSONReporter({ fd: fs.openSync(dest, 'w'), otel: true });
+    reporter = new JSONReporter({ fd: fs.openSync(dest, 'w') });
     stream = reporter.stream;
 
     const j1 = tJourney('succeeded', 1);

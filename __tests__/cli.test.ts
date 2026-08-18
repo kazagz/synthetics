@@ -217,12 +217,13 @@ journey('inline browser', ({ page, params }) => {
     expect(await cli.exitCode).toBe(0);
   });
 
-  it('accepts --otel flag for run command', async () => {
+  it('enables otel via SYNTHETICS_OTEL env var for run command', async () => {
     const cli = new CLIMock()
-      .args([join(FIXTURES_DIR, 'fake.journey.ts'), '--otel'])
+      .args([join(FIXTURES_DIR, 'fake.journey.ts')])
       .run({
         env: {
           ...process.env,
+          SYNTHETICS_OTEL: 'true',
           OTEL_SDK_DISABLED: 'true',
         },
       });
@@ -230,18 +231,15 @@ journey('inline browser', ({ page, params }) => {
     expect(await cli.exitCode).toBe(0);
   });
 
-  it('accepts distributed tracing flags for run command', async () => {
+  it('enables distributed tracing via SYNTHETICS_OTEL_* env vars for run command', async () => {
     const cli = new CLIMock()
-      .args([
-        join(FIXTURES_DIR, 'fake.journey.ts'),
-        '--otel',
-        '--distributed-tracing',
-        '--distributed-tracing-origins',
-        'example.com',
-      ])
+      .args([join(FIXTURES_DIR, 'fake.journey.ts')])
       .run({
         env: {
           ...process.env,
+          SYNTHETICS_OTEL: 'true',
+          SYNTHETICS_OTEL_DISTRIBUTED_TRACING: 'true',
+          SYNTHETICS_OTEL_DISTRIBUTED_TRACING_ORIGINS: 'example.com',
           OTEL_SDK_DISABLED: 'true',
         },
       });
