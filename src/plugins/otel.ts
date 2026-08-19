@@ -205,6 +205,11 @@ export class OTelPlugin implements SyntheticPlugin {
       return;
     }
 
+    // Ship uninteresting network requests (scripts, images, etc.)
+    if (!ni.isNavigationRequest) {
+      return;
+    }
+
     const traceState = this.traces.get(this.journeyKey(journey));
     if (!traceState) {
       return;
