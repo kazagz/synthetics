@@ -221,6 +221,7 @@ describe('OTelPlugin', () => {
     plugin.endStepSpanWithError(journey, step, null);
 
     plugin.recordNetworkSpan(journey, {
+      isNavigationRequest: true,
       request: {
         method: 'POST',
         headers: {
